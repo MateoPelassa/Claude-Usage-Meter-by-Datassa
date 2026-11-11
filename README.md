@@ -65,7 +65,7 @@ A sign-in window inside a third-party app is exactly what a credential-stealing 
 ## Privacy
 
 - Your token is only read locally and only sent to `api.anthropic.com` / `claude.ai`. It is never refreshed, logged or sent anywhere else.
-- There is no telemetry and no server. Settings, usage history and the retry log stay in `%APPDATA%\medidor-uso-claude` (or `%APPDATA%\Medidor de uso de Claude` for an installed build).
+- There is no telemetry and no server. Settings, usage history and the retry log stay in `%APPDATA%\medidor-uso-claude`.
 - The Advanced panel and the retry feature read your Claude Code transcripts in `~/.claude/projects`. They read only the end of each file to tell what state the session is in; nothing is uploaded or modified.
 - The only outbound links are "Open claude.ai" and the author's website.
 

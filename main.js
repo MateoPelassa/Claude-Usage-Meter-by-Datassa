@@ -14,7 +14,13 @@ const LANG_ARG = process.argv.find((a) => a.startsWith('--lang='))?.slice(7);
 const ICON = path.join(__dirname, 'assets', 'icon.png');
 const APP_ID = 'com.datassa.medidorusoclaude';
 
-if (!CAPTURE && !app.requestSingleInstanceLock()) app.quit();
+// Si el widget ya está abierto (instalado o desde el código: comparten la carpeta de datos), esta copia se cierra
+// en el acto y la que estaba abierta se muestra. Salir ya mismo evita que Chromium llegue a arrancar y llene
+// la terminal de errores de caché por pelearse la carpeta con la otra copia.
+if (!CAPTURE && !app.requestSingleInstanceLock()) {
+  console.log('El widget ya está abierto: mirá la bandeja del sistema. / The widget is already running: check the system tray.');
+  process.exit(0);
+}
 
 // ---------------- Configuración ----------------
 

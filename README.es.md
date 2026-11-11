@@ -59,7 +59,7 @@ Una ventana de inicio de sesión dentro de una app de terceros es exactamente la
 ## Privacidad
 
 - Tu token solo se lee en tu PC y solo se envía a `api.anthropic.com` / `claude.ai`. Nunca se renueva, se registra ni se manda a otro lado.
-- No hay telemetría ni servidor. La configuración, el historial de uso y el registro de reintentos quedan en `%APPDATA%\medidor-uso-claude` (o `%APPDATA%\Medidor de uso de Claude` en la versión instalada).
+- No hay telemetría ni servidor. La configuración, el historial de uso y el registro de reintentos quedan en `%APPDATA%\medidor-uso-claude`.
 - El panel Avanzado y el reintento leen tus registros de Claude Code en `~/.claude/projects`. Leen solo el final de cada archivo para saber en qué estado está la sesión; no suben ni modifican nada.
 - Los únicos enlaces salientes son "Ver en claude.ai" y la web del autor.
 
