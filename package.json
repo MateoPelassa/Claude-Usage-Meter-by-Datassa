@@ -1,0 +1,41 @@
+{
+  "name": "medidor-uso-claude",
+  "version": "1.0.0",
+  "description": "Medidor de uso de Claude / Claude Usage Meter: widget flotante para Windows con el consumo de los límites de Claude. No oficial.",
+  "main": "main.js",
+  "author": "Mateo Pelassa (Datassa) <https://datassa.com.ar>",
+  "homepage": "https://datassa.com.ar",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "demo": "electron . --demo",
+    "demo:en": "electron . --demo --lang=en",
+    "test": "node --test",
+    "icon": "node scripts/make-icon.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.datassa.medidorusoclaude",
+    "productName": "Medidor de uso de Claude",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**",
+      "renderer/**",
+      "assets/**"
+    ],
+    "win": {
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3"
+  }
+}

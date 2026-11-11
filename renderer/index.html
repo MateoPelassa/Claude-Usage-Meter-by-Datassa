@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
+  <title>Claude Usage Meter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="root">
+    <div class="pill" id="pill">
+      <div class="logo drag" id="pillLogo"><svg viewBox="0 0 24 24" id="logo"></svg></div>
+      <div class="pill-items" id="pillItems"></div>
+      <button class="pill-btn" id="expandBtn"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></button>
+    </div>
+    <div class="panel hidden" id="panel"></div>
+  </div>
+  <script src="../src/i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
