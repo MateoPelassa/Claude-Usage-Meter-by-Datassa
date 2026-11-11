@@ -1,14 +1,31 @@
+<div align="center">
+
+<img src="assets/icon.png" width="96" alt="Ícono del Medidor de uso de Claude">
+
 # Medidor de uso de Claude
 
-Un widget chico y siempre visible para Windows que muestra cuánto consumiste de los límites de tu suscripción de Claude, cuánto te queda y si al ritmo actual llegás hasta el reinicio.
+**Un widget chico y siempre visible para Windows que muestra cuánto consumiste de tus límites de Claude,<br>cuánto te queda y si al ritmo actual llegás hasta el reinicio.**
 
-**[Read in English](README.md)**
+[![Pruebas](https://github.com/MateoPelassa/Claude-Usage-Meter-by-Datassa/actions/workflows/test.yml/badge.svg)](https://github.com/MateoPelassa/Claude-Usage-Meter-by-Datassa/actions/workflows/test.yml)
+[![Licencia: MIT](https://img.shields.io/badge/licencia-MIT-d97757)](LICENSE)
+![Plataforma: Windows](https://img.shields.io/badge/plataforma-Windows-555)
+![No oficial](https://img.shields.io/badge/no%20oficial-sin%20relaci%C3%B3n%20con%20Anthropic-555)
+
+[English](README.md) · **Español**
+
+<img src="docs/widget-es.png" alt="Widget expandido con los límites, el pronóstico y las sesiones de Claude Code" width="340">
+
+*Achicado, es una barra fina que podés dejar en una esquina:*
+
+<img src="docs/pill-es.png" alt="Widget achicado" width="300">
+
+</div>
 
 > **No oficial.** Este proyecto no tiene relación con Anthropic, ni su aval ni su soporte. "Claude" es una marca de Anthropic.
 
-<p>
-  <img src="docs/widget-es.png" alt="Widget expandido" width="340">
-</p>
+## Contenido
+
+[Qué hace](#qué-hace) · [Instalación](#instalación) · [De dónde salen los datos](#de-dónde-salen-los-datos) · [Privacidad](#privacidad) · [Botones de automatización](#los-dos-botones-de-automatización) · [Opciones](#opciones) · [Desarrollo](#desarrollo)
 
 ## Qué hace
 
@@ -25,8 +42,8 @@ Un widget chico y siempre visible para Windows que muestra cuánto consumiste de
 Necesita Windows y [Node.js](https://nodejs.org) 20 o superior.
 
 ```bash
-git clone <url-de-este-repo>
-cd <carpeta-del-repo>
+git clone https://github.com/MateoPelassa/Claude-Usage-Meter-by-Datassa.git
+cd Claude-Usage-Meter-by-Datassa
 npm install
 npm start
 ```

@@ -46,6 +46,8 @@ function migrateOldData() {
 
 let cfg = null;
 function settings() {
+  // Las capturas (para el README) salen siempre con los valores de fábrica, no con la configuración de quien las genera.
+  if (!cfg && CAPTURE) cfg = { ...DEFAULTS };
   if (!cfg) {
     migrateOldData();
     try { cfg = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(cfgPath(), 'utf8')) }; } catch { cfg = { ...DEFAULTS }; }

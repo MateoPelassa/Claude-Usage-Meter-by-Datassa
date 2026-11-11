@@ -1,20 +1,31 @@
+<div align="center">
+
+<img src="assets/icon.png" width="96" alt="Claude Usage Meter icon">
+
 # Claude Usage Meter
 
-A small always-on-top widget for Windows that shows how much of your Claude subscription limits you have used, how much is left, and whether your current pace will last until the reset.
+**A small always-on-top Windows widget that shows how much of your Claude limits you have used,<br>how much is left, and whether your current pace will last until the reset.**
 
-**[Leer en español](README.es.md)**
+[![Tests](https://github.com/MateoPelassa/Claude-Usage-Meter-by-Datassa/actions/workflows/test.yml/badge.svg)](https://github.com/MateoPelassa/Claude-Usage-Meter-by-Datassa/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-d97757)](LICENSE)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows-555)
+![Unofficial](https://img.shields.io/badge/unofficial-not%20affiliated%20with%20Anthropic-555)
+
+**English** · [Español](README.es.md)
+
+<img src="docs/widget-en.png" alt="Expanded widget showing limits, forecast and Claude Code sessions" width="340">
+
+*Collapsed, it is a thin bar you can park in a corner:*
+
+<img src="docs/pill-en.png" alt="Collapsed widget" width="300">
+
+</div>
 
 > **Unofficial.** This project is not affiliated with, endorsed by, or supported by Anthropic. "Claude" is a trademark of Anthropic.
 
-<p>
-  <img src="docs/widget-en.png" alt="Expanded widget" width="340">
-</p>
+## Contents
 
-Collapsed, it is a thin bar you can park in a corner:
-
-<p>
-  <img src="docs/pill-en.png" alt="Collapsed widget" width="300">
-</p>
+[What it does](#what-it-does) · [Install](#install) · [Where the data comes from](#where-the-data-comes-from) · [Privacy](#privacy) · [Automation buttons](#the-two-automation-buttons) · [Options](#options) · [Development](#development)
 
 ## What it does
 
@@ -31,8 +42,8 @@ Collapsed, it is a thin bar you can park in a corner:
 Requires Windows and [Node.js](https://nodejs.org) 20 or newer.
 
 ```bash
-git clone <this-repo-url>
-cd <repo-folder>
+git clone https://github.com/MateoPelassa/Claude-Usage-Meter-by-Datassa.git
+cd Claude-Usage-Meter-by-Datassa
 npm install
 npm start
 ```
