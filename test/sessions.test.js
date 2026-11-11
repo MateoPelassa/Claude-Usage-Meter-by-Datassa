@@ -72,6 +72,22 @@ test('un comando local después del corte no cuenta como retomada', (t) => {
   assert.deepEqual(scan({ dirs: [root], now: NOW }).pending.map((p) => p.id), ['cortada']);
 });
 
+test('abrir una sesión vieja no la hace figurar como trabajando', (t) => {
+  // Caso real: la app agrega metadatos sin fecha al abrir la sesión y el archivo queda con fecha de hoy.
+  const meta = [{ type: 'last-prompt', lastPrompt: 'x' }, { type: 'tools-used' }, { type: 'cost-state' }];
+  const twoMonths = 60 * 24 * 60;
+  const root = fixture([
+    ['vieja', [user(twoMonths), assistant(twoMonths), ...meta], 1],
+    ['a-medias', [user(twoMonths), assistant(twoMonths, 'tool_use'), ...meta], 1],
+  ]);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const r = scan({ dirs: [root], now: NOW });
+  assert.deepEqual(r.sessions, []);
+  // Tampoco debe contar como actividad reciente para la regla de apagado.
+  assert.ok(NOW - r.lastActivity > 24 * 3600e3);
+});
+
 test('usa el título de la sesión si existe', (t) => {
   const root = fixture([['con-titulo', [user(10), assistant(9), { type: 'custom-title', customTitle: 'Mi sesión' }], 9]]);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

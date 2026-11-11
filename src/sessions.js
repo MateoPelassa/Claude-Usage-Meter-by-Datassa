@@ -64,7 +64,11 @@ function describe(file, st, sub, now, maxAgeMs) {
     && now - errorAt <= maxAgeMs;
   const cwd = headCwd(file, st.size) || lastMsg?.cwd || null;
   const title = findLast(entries, (e) => e.type === 'custom-title')?.customTitle || findLast(entries, (e) => e.type === 'ai-title')?.aiTitle || null;
-  const activity = Math.max(st.mtimeMs, sub.latest);
+  // La actividad se mide por la hora de la última entrada con fecha (mensajes, herramientas), no por la del archivo:
+  // con solo abrir una sesión vieja la app le agrega metadatos sin fecha (título, modo, costo) y el archivo parece recién usado.
+  const stamped = findLast(entries, (e) => e.timestamp && !Number.isNaN(Date.parse(e.timestamp)));
+  const lastWrite = stamped ? Math.min(Date.parse(stamped.timestamp), st.mtimeMs) : st.mtimeMs;
+  const activity = Math.max(lastWrite, sub.latest);
 
   // Qué estaba pasando en el último mensaje, para interpretar el silencio.
   let turn = 'done';
@@ -127,13 +131,14 @@ function scan({ maxAgeMs = 24 * 3600e3, now = Date.now(), dirs = roots() } = {})
         const file = path.join(dir, f);
         let st;
         try { st = fs.statSync(file); } catch { continue; }
-        lastActivity = Math.max(lastActivity, st.mtimeMs);
+        // La fecha del archivo solo sirve de filtro barato: nunca es anterior a la actividad real.
         const age = now - st.mtimeMs;
         if (age > Math.max(maxAgeMs, ACTIVE_MS)) continue;
         const sub = age <= ACTIVE_MS ? subagentActivity(dir, f.slice(0, -6), now) : { latest: 0, active: 0 };
         lastActivity = Math.max(lastActivity, sub.latest);
         let s;
         try { s = describe(file, st, sub, now, maxAgeMs); } catch { continue; }
+        lastActivity = Math.max(lastActivity, s.activity);
         // Las cortadas por tope se listan siempre; el resto, solo si tuvo actividad reciente.
         if (s.status === 'waiting' || now - s.activity <= ACTIVE_MS) sessions.push(s);
         if (s.status === 'waiting') pending.push(s);
