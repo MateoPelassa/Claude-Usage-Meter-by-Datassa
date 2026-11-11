@@ -57,6 +57,28 @@ test('apaga solo cuando no queda nada y hubo silencio suficiente', () => {
   assert.equal(shouldShutdown({ ...quiet, gaveUp: 2 }), true, 'las que no se pudieron retomar no bloquean');
 });
 
+// ---- Sesión de Claude Code ----
+
+test('con el token vencido avisa sin consultar a la API', async (t) => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'medidor-cred-'));
+  const exp = Date.now() - 5 * 864e5;
+  fs.writeFileSync(path.join(dir, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'token-de-prueba', expiresAt: exp } }));
+  const before = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  // Si llegara a consultar, la prueba falla acá en vez de salir a internet.
+  t.mock.method(globalThis, 'fetch', () => { throw new Error('no debería consultar'); });
+  t.after(() => {
+    if (before === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = before;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const { fetchUsage, SessionError } = require('../src/usage');
+  await assert.rejects(fetchUsage(), (err) => err instanceof SessionError && err.code === 'rejected' && err.params.exp === exp);
+});
+
 // ---- Respuesta de la API ----
 
 test('normalize se queda con los límites reconocibles y los ordena', () => {

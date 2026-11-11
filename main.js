@@ -161,10 +161,13 @@ function createTray() {
 
 const webSession = () => session.fromPartition('persist:claudeai');
 
+let usingWebSession = false;
+
 // Primero la sesión propia de claude.ai; si no hay, la de Claude Code guardada en disco.
 async function loadUsage() {
   const cookies = await webSession().cookies.get({ url: 'https://claude.ai', name: 'sessionKey' });
-  if (cookies.length) return fetchUsageWeb(webSession());
+  usingWebSession = cookies.length > 0;
+  if (usingWebSession) return fetchUsageWeb(webSession());
   // Si falla la sesión de Claude Code, el error llega tal cual: el mensaje dice por qué (no hay sesión, o venció)
   // y ofrece las dos salidas, en vez de empujar directo al inicio de sesión dentro del widget.
   return fetchUsage();
@@ -246,7 +249,10 @@ async function refresh() {
     scheduleResetRefresh(last.data);
   } catch (err) {
     // Si falla, se conservan los últimos datos buenos y se informa el error.
-    last = { ok: false, error: T().errorText(err), session: err instanceof SessionError, data: last?.data || null };
+    // El botón de iniciar sesión se ofrece si falta la sesión, y también si la de Claude Code quedó bloqueada
+    // por exceso de consultas: entrar por claude.ai es la única salida que no depende de esperar.
+    const offerLogin = err instanceof SessionError || (!usingWebSession && err.code === 'tooMany');
+    last = { ok: false, error: T().errorText(err), session: offerLogin, data: last?.data || null };
   }
   win?.webContents.send('usage', last);
   trayTooltip();

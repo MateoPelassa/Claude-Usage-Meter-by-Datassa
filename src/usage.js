@@ -63,6 +63,11 @@ function normalize(json) {
 
 async function fetchUsage() {
   const oauth = readSession();
+  // expiresAt viene en milisegundos; si parece estar en segundos se convierte.
+  const exp = oauth.expiresAt ? (oauth.expiresAt < 1e12 ? oauth.expiresAt * 1000 : oauth.expiresAt) : null;
+  // Con el token vencido ni se consulta: la API no contesta "vencido" sino "demasiadas consultas",
+  // un error que no dice qué hacer y que empeora insistiendo.
+  if (exp && exp < Date.now()) throw new SessionError('rejected', { exp });
   const res = await fetch(USAGE_URL, {
     headers: {
       Authorization: `Bearer ${oauth.accessToken}`,
@@ -72,8 +77,6 @@ async function fetchUsage() {
     },
   });
   if (res.status === 401 || res.status === 403) {
-    // expiresAt viene en milisegundos; si parece estar en segundos se convierte.
-    const exp = oauth.expiresAt ? (oauth.expiresAt < 1e12 ? oauth.expiresAt * 1000 : oauth.expiresAt) : null;
     throw new SessionError('rejected', { exp });
   }
   if (res.status === 429) throw new UsageError('tooMany');
