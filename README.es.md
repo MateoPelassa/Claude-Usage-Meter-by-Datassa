@@ -44,7 +44,17 @@ El widget vive en la bandeja del sistema. Con clic derecho en el ícono tenés l
 Leé esto antes de usarlo.
 
 - El widget lee tu uso de las mismas direcciones que usan las apps de Claude: `api.anthropic.com/api/oauth/usage` y `claude.ai/api/organizations/.../usage`. **No son APIs públicas documentadas.** Pueden cambiar o dejar de funcionar en cualquier momento, y usarlas desde una herramienta de terceros puede no estar contemplado en los términos de Anthropic. Revisalos y usalo bajo tu responsabilidad.
-- Para autenticarse usa un inicio de sesión de claude.ai que hacés dentro del widget (queda en el perfil de navegador propio del widget), o la sesión que Claude Code ya guardó en `~/.claude/.credentials.json`.
+- Para autenticarse usa la sesión que Claude Code ya guardó en `~/.claude/.credentials.json`, o un inicio de sesión de claude.ai que hacés dentro del widget.
+
+### Sobre iniciar sesión dentro del widget
+
+Una ventana de inicio de sesión dentro de una app de terceros es exactamente la forma que tiene una herramienta para robar credenciales, así que no deberías aceptar esta de palabra.
+
+- **Puede que no la necesites.** Si usás Claude Code por terminal, su sesión guardada alcanza y el widget nunca te pide iniciar sesión. Esa sesión vence al tiempo y solo la renueva Claude Code por terminal, así que si usás únicamente la app de escritorio te va a ofrecer el inicio de sesión.
+- **Qué entregás.** Al entrar, queda guardada una sesión completa de claude.ai en el perfil de navegador propio del widget, en tu PC. Da acceso a toda tu cuenta, no solo al uso. El widget solo la usa para llamar a las dos direcciones de arriba.
+- **Cómo verificarlo.** La ventana no tiene barra de direcciones, así que su título muestra siempre el sitio real en el que estás (la página no puede cambiarlo). Todo el flujo es `openLogin` en [`main.js`](main.js), unas 35 líneas: carga `https://claude.ai/login` en una ventana aislada y la cierra cuando entraste.
+- **Cómo deshacerlo.** Ícono de la bandeja → *Cerrar sesión de claude.ai* borra esa sesión guardada.
+- "Continuar con Google" puede no funcionar en una ventana embebida, porque Google suele bloquearlas. En ese caso usá la opción por correo.
 
 ## Privacidad
 

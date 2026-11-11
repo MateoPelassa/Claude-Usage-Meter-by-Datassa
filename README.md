@@ -50,7 +50,17 @@ The widget lives in the system tray. Right-click the tray icon for alerts, start
 Read this before you run it.
 
 - The widget reads your usage from the same endpoints the Claude apps use: `api.anthropic.com/api/oauth/usage` and `claude.ai/api/organizations/.../usage`. **These are not documented public APIs.** They can change or stop working at any time, and using them from a third-party tool may not be covered by Anthropic's terms. Check them yourself and use this at your own risk.
-- To authenticate it uses either a claude.ai sign-in you do inside the widget (kept in the widget's own browser profile), or the session Claude Code already saved in `~/.claude/.credentials.json`.
+- To authenticate it uses the session Claude Code already saved in `~/.claude/.credentials.json`, or a claude.ai sign-in you do inside the widget.
+
+### About signing in inside the widget
+
+A sign-in window inside a third-party app is exactly what a credential-stealing tool looks like, so you should not take this one on trust.
+
+- **You may not need it.** If you use Claude Code in a terminal, its saved session is enough and the widget never asks you to sign in. That saved session expires after a while and only the Claude Code CLI renews it, so if you only use the desktop app you will be offered the sign-in instead.
+- **What you hand over.** Signing in stores a full claude.ai session in the widget's own browser profile on your PC. It grants access to your whole account, not just usage. The widget only calls the two usage endpoints above with it.
+- **How to check.** The window has no address bar, so its title always shows the real site you are on (the page cannot change it). The whole flow is `openLogin` in [`main.js`](main.js), about 35 lines: it loads `https://claude.ai/login` in an isolated, sandboxed window and closes it once you are in.
+- **How to undo it.** Tray icon → *Sign out of claude.ai* deletes that stored session.
+- "Continue with Google" may not work in an embedded window, since Google often blocks those. Use the email option if so.
 
 ## Privacy
 

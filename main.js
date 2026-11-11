@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, Notification, screen, nativeImage, powerMonitor, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, Notification, screen, nativeImage, powerMonitor, shell, session, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { fetchUsage, fetchUsageWeb, demoUsage, SessionError } = require('./src/usage');
@@ -165,24 +165,42 @@ const webSession = () => session.fromPartition('persist:claudeai');
 async function loadUsage() {
   const cookies = await webSession().cookies.get({ url: 'https://claude.ai', name: 'sessionKey' });
   if (cookies.length) return fetchUsageWeb(webSession());
-  try {
-    return await fetchUsage();
-  } catch (err) {
-    if (err instanceof SessionError) throw new SessionError('signIn');
-    throw err;
-  }
+  // Si falla la sesión de Claude Code, el error llega tal cual: el mensaje dice por qué (no hay sesión, o venció)
+  // y ofrece las dos salidas, en vez de empujar directo al inicio de sesión dentro del widget.
+  return fetchUsage();
 }
 
 let loginWin = null;
-function openLogin() {
+async function openLogin() {
   if (loginWin) return loginWin.focus();
+  // Antes de abrir nada se explica qué se está por entregar: una ventana de login dentro de una app de terceros
+  // es justo la forma de un robo de credenciales, así que el usuario tiene que poder decidir informado.
+  const t = T();
+  const { response } = await dialog.showMessageBox({
+    type: 'info', title: t.appName, icon: ICON, noLink: true,
+    message: t.loginNotice, detail: t.loginNoticeDetail,
+    buttons: [t.loginContinue, t.cancel], defaultId: 1, cancelId: 1,
+  });
+  if (response !== 0 || loginWin) return;
+
   loginWin = new BrowserWindow({
-    width: 480, height: 720, title: T().loginTitle, icon: ICON, autoHideMenuBar: true,
+    width: 480, height: 720, title: 'claude.ai', icon: ICON, autoHideMenuBar: true,
     webPreferences: { partition: 'persist:claudeai', contextIsolation: true, sandbox: true },
   });
+  // La ventana no tiene barra de direcciones: el título muestra siempre el sitio real en el que está,
+  // y la página no puede cambiarlo.
+  const showAddress = () => {
+    if (!loginWin) return;
+    try {
+      const u = new URL(loginWin.webContents.getURL());
+      loginWin.setTitle(`${u.protocol === 'https:' ? '🔒 ' : '⚠ '}${u.host}${u.pathname === '/' ? '' : u.pathname} · ${T().loginTitle}`);
+    } catch {}
+  };
+  loginWin.webContents.on('page-title-updated', (e) => { e.preventDefault(); showAddress(); });
   loginWin.loadURL('https://claude.ai/login');
   // Cuando sale de /login (ya entró a su cuenta), se cierra y se actualiza.
   const check = (_e, url) => {
+    showAddress();
     const u = new URL(url);
     if (u.hostname === 'claude.ai' && !/^\/(login|magic-link|oauth|sso)/.test(u.pathname)) setTimeout(() => loginWin?.close(), 600);
   };
