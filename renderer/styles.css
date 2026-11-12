@@ -135,6 +135,11 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .dot.waiting { background: var(--danger); }
 .dot.stalled { background: var(--warn); }
 
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 6px; transition: opacity 0.2s; }
+.chips.dim { opacity: 0.4; }
+.chip-sm { height: 22px; padding: 0 9px; border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.14); color: var(--muted); font-size: 11px; }
+.chip-sm:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+.chip-sm.on { background: rgba(217, 119, 87, 0.2); border-color: var(--claude); color: var(--text); }
 .set.seg-row { grid-template-columns: 124px 1fr; margin-bottom: 4px; }
 .seg { display: flex; height: 24px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 7px; overflow: hidden; }
 .seg button { flex: 1; font-size: 11.5px; color: var(--muted); }

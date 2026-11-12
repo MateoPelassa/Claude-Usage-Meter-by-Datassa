@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   hide: () => ipcRenderer.invoke('app:hide'),
   login: () => ipcRenderer.invoke('auth:login'),
   onUsage: (fn) => ipcRenderer.on('usage', (_e, u) => fn(u)),
+  onSettings: (fn) => ipcRenderer.on('settings', (_e, s) => fn(s)),
   getLang: () => ipcRenderer.invoke('lang:get'),
   getLinks: () => ipcRenderer.invoke('links:get'),
   openLink: (key) => ipcRenderer.invoke('links:open', key),

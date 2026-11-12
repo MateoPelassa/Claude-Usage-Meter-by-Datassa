@@ -93,7 +93,7 @@ Los dos vienen apagados y los activás vos.
 
 ## Opciones
 
-Con el ícono de controles del widget: barras (consumido / disponible), idioma, tamaño, opacidad, intervalo de reintento y silencio antes de apagar. `Ctrl` + rueda del mouse también lo agranda o achica.
+Con el ícono de controles del widget: barras (consumido / disponible), idioma, avisos (activados o no, cuáles: al 80%, al 95%, por ritmo, al reiniciarse, y con o sin sonido), tamaño, opacidad, intervalo de reintento y silencio antes de apagar. `Ctrl` + rueda del mouse también lo agranda o achica.
 
 ## Desarrollo
 

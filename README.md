@@ -93,7 +93,7 @@ Both are off by default and are yours to turn on.
 
 ## Options
 
-Click the sliders icon in the widget: bars (used / left), language, size, opacity, retry interval and quiet time before shutdown. `Ctrl` + mouse wheel also resizes it.
+Click the sliders icon in the widget: bars (used / left), language, alerts (on/off, which ones: at 80%, at 95%, by pace, on reset, and with or without sound), size, opacity, retry interval and quiet time before shutdown. `Ctrl` + mouse wheel also resizes it.
 
 ## Development
 

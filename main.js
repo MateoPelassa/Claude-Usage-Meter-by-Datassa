@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { fetchUsage, fetchUsageWeb, demoUsage, SessionError } = require('./src/usage');
 const history = require('./src/history');
+const { planAlerts, loadSeen, saveSeen, cleanTypes } = require('./src/alerts');
 const i18n = require('./src/i18n');
 const { createAutomation } = require('./src/automation');
 
@@ -24,7 +25,7 @@ if (!CAPTURE && !app.requestSingleInstanceLock()) {
 
 // ---------------- Configuración ----------------
 
-const DEFAULTS = { pos: null, expanded: false, opacity: 0.94, scale: 1, alerts: true, launchAtLogin: true, refreshMinutes: 3, retryMinutes: 20, shutdownIdleMinutes: 10, lang: 'auto' };
+const DEFAULTS = { pos: null, expanded: false, opacity: 0.94, scale: 1, alerts: true, alertTypes: { p80: true, p95: true, pace: true, reset: true }, alertSilent: false, launchAtLogin: true, refreshMinutes: 3, retryMinutes: 20, shutdownIdleMinutes: 10, lang: 'auto' };
 const cfgPath = () => path.join(app.getPath('userData'), 'config.json');
 const historyPath = () => path.join(app.getPath('userData'), 'history.json');
 
@@ -80,7 +81,6 @@ let win = null;
 let tray = null;
 let quitting = false;
 let last = null;
-const alerted = new Set();
 
 function defaultPos() {
   const { workArea } = screen.getPrimaryDisplay();
@@ -142,7 +142,8 @@ function trayMenu() {
     { label: t.trayRefresh, click: () => refresh() },
     { label: t.trayUsage, click: () => shell.openExternal('https://claude.ai/settings/usage') },
     { type: 'separator' },
-    { label: t.trayAlerts, type: 'checkbox', checked: settings().alerts, click: (i) => saveSettings({ alerts: i.checked }) },
+    // Si se cambia desde la bandeja, el panel también tiene que enterarse (tiene su propio interruptor de avisos).
+    { label: t.trayAlerts, type: 'checkbox', checked: settings().alerts, click: (i) => { saveSettings({ alerts: i.checked }); win?.webContents.send('settings', settings()); } },
     { label: t.trayStartup, type: 'checkbox', checked: loginEnabled(), click: (i) => { saveSettings({ launchAtLogin: i.checked }); setLoginItem(i.checked); } },
     { label: t.trayResetPos, click: () => { const p = defaultPos(); win.setPosition(p.x, p.y); saveSettings({ pos: p }); } },
     { label: t.traySignIn, click: openLogin },
@@ -269,37 +270,30 @@ async function refresh() {
 
 function notify(title, body = '') {
   if (CAPTURE || !Notification.isSupported()) return;
-  new Notification({ title, body, icon: ICON }).show();
+  // "Silenciosos": el aviso aparece igual pero sin el sonido de Windows.
+  new Notification({ title, body, icon: ICON, silent: !!settings().alertSilent }).show();
 }
 
+const alertsPath = () => path.join(app.getPath('userData'), 'alerts.json');
 const wasFull = new Set();
+let seenAlerts = null;
 
+// Qué avisar lo decide src/alerts.js; acá solo se muestran, con el texto en el idioma actual.
 function checkAlerts(data) {
-  if (!settings().alerts || !Notification.isSupported()) return;
+  // En la demo los datos son inventados (y la hora de reinicio se recalcula en cada lectura): no se avisa nada.
+  if (DEMO || !settings().alerts || !Notification.isSupported()) return;
   const t = T();
-  for (const l of data.limits) {
+  seenAlerts ??= DEMO || CAPTURE ? {} : loadSeen(alertsPath());
+  const plan = planAlerts(data, { types: settings().alertTypes, seen: seenAlerts, wasFull });
+  if (!DEMO && !CAPTURE) saveSeen(alertsPath(), seenAlerts);
+  for (const { kind, limit: l } of plan) {
     const name = t.limitName(l.key).toLowerCase();
     const f = l.forecast || {};
-    // Por ritmo: avisa antes de llegar, no cuando ya casi no queda.
-    const soon = l.windowMs > 864e5 ? 6 * 3600e3 : 30 * 60e3;
-    const fastKey = `${l.key}:${l.resetsAt}:fast`;
-    if (f.state === 'fast' && f.hitAt - Date.now() < soon && !alerted.has(fastKey)) {
-      alerted.add(fastKey);
-      notify(t.nFast(name, hhmm(f.hitAt)), t.nFastBody(hhmm(f.end)));
-    }
-    // Ya se reinició un límite que estaba agotado.
-    if (f.state === 'full') wasFull.add(l.key);
-    else if (wasFull.delete(l.key)) notify(t.nReset(name), t.nResetBody);
-
-    for (const pct of [95, 80]) {
-      const key = `${l.key}:${l.resetsAt}:${pct}`;
-      if (l.used >= pct && !alerted.has(key)) {
-        alerted.add(key);
-        if (pct === 80 && l.used >= 95) continue; // ya avisa el de 95
-        const reset = l.resetsAt ? new Date(l.resetsAt) : null;
-        notify(t.nPct(Math.round(l.used), name), reset ? t.nPctBody(`${t.wd[reset.getDay()]} ${hhmm(reset)}`) : '');
-        break;
-      }
+    if (kind === 'pace') notify(t.nFast(name, hhmm(f.hitAt)), t.nFastBody(hhmm(f.end)));
+    else if (kind === 'reset') notify(t.nReset(name), t.nResetBody);
+    else {
+      const reset = l.resetsAt ? new Date(l.resetsAt) : null;
+      notify(t.nPct(Math.round(l.used), name), reset ? t.nPctBody(`${t.wd[reset.getDay()]} ${hhmm(reset)}`) : '');
     }
   }
 }
@@ -316,7 +310,13 @@ ipcMain.handle('settings:set', (_e, patch) => {
   if ('retryMinutes' in patch) patch.retryMinutes = minutes(patch.retryMinutes, 5, 120, 20);
   if ('shutdownIdleMinutes' in patch) patch.shutdownIdleMinutes = minutes(patch.shutdownIdleMinutes, 5, 120, 10);
   if ('lang' in patch && !['auto', ...i18n.languages].includes(patch.lang)) patch.lang = 'auto';
+  // Los avisos se guardan solo como interruptores conocidos: lo que llegue de la ventana no se acepta tal cual.
+  if ('alertTypes' in patch) patch.alertTypes = cleanTypes(patch.alertTypes);
+  if ('alerts' in patch) patch.alerts = !!patch.alerts;
+  if ('alertSilent' in patch) patch.alertSilent = !!patch.alertSilent;
   const s = saveSettings(patch);
+  // El menú de la bandeja muestra "Avisos de consumo" tildado o no: si cambió desde el panel, hay que rehacerlo.
+  if ('alerts' in patch) tray?.setContextMenu(trayMenu());
   if ('retryMinutes' in patch || 'shutdownIdleMinutes' in patch) automation.emit();
   if ('scale' in patch) win.webContents.setZoomFactor(s.scale);
   if ('lang' in patch) {

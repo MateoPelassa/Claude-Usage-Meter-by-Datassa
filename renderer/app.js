@@ -22,6 +22,7 @@ const icon = (n) => `<svg viewBox="0 0 24 24">${ICON[n]}</svg>`;
 let state = {
   usage: null, auto: null, links: [], showAdvanced: false, expanded: false, loading: false, showSettings: false,
   scale: 1, opacity: 0.94, showUsed: false, retryMinutes: 20, shutdownIdleMinutes: 10,
+  alerts: true, alertTypes: {}, alertSilent: false,
   shutdownAck: false, confirmShutdown: false,
 };
 
@@ -201,6 +202,8 @@ function advancedHtml() {
 function settingsHtml() {
   if (!state.showSettings) return '';
   const seg = (on, action, label, tip = '') => `<button class="${on ? 'on' : ''}" data-action="${action}" title="${esc(tip)}">${esc(label)}</button>`;
+  // Un interruptor por clase de aviso: encendido salvo que se haya apagado a propósito.
+  const chip = (k, label, tip) => `<button class="chip-sm ${state.alertTypes[k] !== false ? 'on' : ''}" data-alert="${k}" title="${esc(tip)}">${esc(label)}</button>`;
   return `
     <div class="settings">
       <div class="set seg-row"><span>${T.setBars}</span><div class="seg">
@@ -211,6 +214,17 @@ function settingsHtml() {
         ${seg(T.lang === 'es', 'lang-es', 'Español')}
         ${seg(T.lang === 'en', 'lang-en', 'English')}
       </div></div>
+      <div class="set seg-row" title="${esc(T.alertsTip)}"><span>${T.setAlerts}</span><div class="seg">
+        ${seg(state.alerts, 'alerts-on', T.alertsOn)}
+        ${seg(!state.alerts, 'alerts-off', T.alertsOff)}
+      </div></div>
+      <div class="chips ${state.alerts ? '' : 'dim'}" aria-label="${esc(T.alertKinds)}">
+        ${chip('p80', T.alertP80, T.alertP80Tip)}
+        ${chip('p95', T.alertP95, T.alertP95Tip)}
+        ${chip('pace', T.alertPace, T.alertPaceTip)}
+        ${chip('reset', T.alertReset, T.alertResetTip)}
+        <button class="chip-sm ${state.alertSilent ? '' : 'on'}" data-action="alert-sound" title="${esc(T.alertSoundTip)}">${T.alertSound}</button>
+      </div>
       <label class="set"><span>${T.setSize}</span><input type="range" min="0.8" max="1.5" step="0.05" value="${state.scale}" data-set="scale"><b>${Math.round(state.scale * 100)}%</b></label>
       <label class="set"><span>${T.setOpacity}</span><input type="range" min="0.35" max="1" step="0.01" value="${state.opacity}" data-set="opacity"><b>${Math.round(state.opacity * 100)}%</b></label>
       <label class="set" title="${esc(T.setRetryTip)}"><span>${T.setRetry}</span><input type="range" min="5" max="120" step="5" value="${state.retryMinutes}" data-cfg="retryMinutes"><b>${state.retryMinutes} min</b></label>
@@ -382,6 +396,12 @@ async function setLang(lang) {
 document.addEventListener('click', (e) => {
   const link = e.target.closest('[data-link]')?.dataset.link;
   if (link) return window.api.openLink(link);
+  const kind = e.target.closest('[data-alert]')?.dataset.alert;
+  if (kind) {
+    state.alertTypes = { ...state.alertTypes, [kind]: state.alertTypes[kind] === false };
+    window.api.setSettings({ alertTypes: state.alertTypes });
+    return render();
+  }
   const a = e.target.closest('[data-action]')?.dataset.action;
   if (a === 'refresh') return refresh();
   if (a === 'collapse') return setExpanded(false);
@@ -394,6 +414,16 @@ document.addEventListener('click', (e) => {
     return render();
   }
   if (a === 'lang-es' || a === 'lang-en') return setLang(a.slice(5));
+  if (a === 'alerts-on' || a === 'alerts-off') {
+    state.alerts = a === 'alerts-on';
+    window.api.setSettings({ alerts: state.alerts });
+    return render();
+  }
+  if (a === 'alert-sound') {
+    state.alertSilent = !state.alertSilent;
+    window.api.setSettings({ alertSilent: state.alertSilent });
+    return render();
+  }
   if (a === 'toggle-advanced') {
     state.showAdvanced = !state.showAdvanced;
     render();
@@ -425,6 +455,8 @@ document.addEventListener('keydown', (e) => {
 
 window.api.onUsage((u) => { state.usage = u; state.loading = false; render(); });
 window.api.onAuto((a) => { state.auto = a; render(); });
+// El interruptor de avisos también está en el menú de la bandeja: si cambia desde ahí, el panel se entera.
+window.api.onSettings((s) => { state.alerts = !!s.alerts; render(); });
 
 (async function init() {
   $('#logo').innerHTML = GAUGE;
@@ -434,6 +466,9 @@ window.api.onAuto((a) => { state.auto = a; render(); });
   state.opacity = s.opacity;
   state.showUsed = !!s.showUsed;
   state.shutdownAck = !!s.shutdownAck;
+  state.alerts = s.alerts !== false;
+  state.alertTypes = s.alertTypes || {};
+  state.alertSilent = !!s.alertSilent;
   state.retryMinutes = s.retryMinutes || 20;
   state.shutdownIdleMinutes = s.shutdownIdleMinutes || 10;
   applyLook();
