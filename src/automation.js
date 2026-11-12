@@ -75,6 +75,7 @@ function createAutomation(o) {
   let lastActivity = 0;
   let sessions = [];
   let busy = false;
+  let lastProbeAt = 0;
 
   const log = (msg) => {
     try { fs.appendFileSync(o.logFile, `${new Date().toISOString()} ${msg}\n`); } catch {}
@@ -116,7 +117,7 @@ function createAutomation(o) {
       lastActivity = now - 20e3;
       return;
     }
-    const found = scan({ maxAgeMs: (o.cfg().retryMaxAgeHours || 24) * 3600e3 });
+    const found = (o.scan || scan)({ maxAgeMs: (o.cfg().retryMaxAgeHours || 24) * 3600e3 });
     sessions = found.sessions;
     lastActivity = found.lastActivity;
     st.pending = found.pending.filter((p) => (attempts.get(p.id) || 0) < MAX_ATTEMPTS);
@@ -151,6 +152,10 @@ function createAutomation(o) {
     for (const p of queue) {
       if (!st.retry) break;
       if (blocked(p)) { st.note = 'blocked'; continue; }
+      // Entre una sesión y otra pasa tiempo (y el usuario, o la casilla "continuar automáticamente" de la app de
+      // escritorio, pudo haberla retomado): se vuelve a leer el registro y solo se sigue si todavía está cortada.
+      try { rescan(); } catch {}
+      if (!st.pending.some((x) => x.id === p.id)) { log(`${p.id} (${p.name}) ya no estaba cortada, se omite`); continue; }
       attempts.set(p.id, (attempts.get(p.id) || 0) + 1);
       st.running = p.title || p.name;
       st.note = '';
@@ -178,11 +183,30 @@ function createAutomation(o) {
     try {
       const now = Date.now();
       rescan();
-      if (st.retry && !st.running && st.pending.length && now >= nextRetryAt()) {
-        st.lastRetryAt = now;
-        await o.refreshUsage().catch(() => {});
-        st.running = st.pending[0].title || st.pending[0].name;
-        runQueue(st.pending.slice());
+      if (!st.pending.length && st.note === 'blocked') st.note = '';
+      if (st.retry && !st.running && st.pending.length) {
+        // Con el tope todavía puesto no se gasta el turno del reintento: se vuelve a mirar en la próxima vuelta (cada
+        // minuto). Antes se esperaba el intervalo entero aunque no se hubiera intentado nada, y si el límite se
+        // reiniciaba en ese lapso la sesión quedaba parada hasta 20 minutos de más.
+        let ready = st.pending.filter((p) => !blocked(p));
+        // Pasada la hora de reinicio los datos de uso pueden estar viejos: se actualizan (como mucho una vez cada 2 minutos).
+        if (!ready.length && st.pending.some((p) => p.limitResetsAt && p.limitResetsAt <= now) && now - lastProbeAt >= 120e3) {
+          lastProbeAt = now;
+          await o.refreshUsage().catch(() => {});
+          ready = st.pending.filter((p) => !blocked(p));
+        }
+        if (!ready.length) {
+          if (st.note !== 'blocked') log('esperando: el tope sigue puesto, se reintenta apenas se reinicie');
+          st.note = 'blocked';
+        } else {
+          if (st.note === 'blocked') st.note = '';
+          if (now >= nextRetryAt()) {
+            st.lastRetryAt = now;
+            await o.refreshUsage().catch(() => {});
+            st.running = ready[0].title || ready[0].name;
+            runQueue(ready);
+          }
+        }
       }
       if (st.shutdown && !st.shutdownAt) {
         const ctx = {
@@ -238,7 +262,7 @@ function createAutomation(o) {
     return snapshot();
   }
 
-  return { start, set, cancelShutdown, snapshot, emit, scanNow };
+  return { start, set, cancelShutdown, snapshot, emit, scanNow, tick };
 }
 
 module.exports = { createAutomation, shouldShutdown, buildSpawn, cmdPath };

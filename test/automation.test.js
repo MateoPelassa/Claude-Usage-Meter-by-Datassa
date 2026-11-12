@@ -61,3 +61,62 @@ test('un node.cmd plantado en la carpeta de la sesión no se ejecuta', { skip: p
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+// ---- El turno del reintento ----
+const { createAutomation } = require('../src/automation');
+const wait = (ms = 30) => new Promise((r) => setTimeout(r, ms));
+
+function harness({ pendingScans, usage }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'medidor-retry-'));
+  const logFile = path.join(dir, 'automation.log');
+  let scans = 0;
+  const state = { usage };
+  const a = createAutomation({
+    cfg: () => ({ autoRetry: true, retryMinutes: 20 }),
+    saveCfg() {},
+    getUsage: () => state.usage,
+    refreshUsage: async () => {},
+    notify() {},
+    t: () => ({}),
+    onChange() {},
+    logFile,
+    dryRun: true, // registra "retomando" pero no lanza Claude
+    scan: () => {
+      const pending = pendingScans(scans++);
+      return { sessions: pending, pending, lastActivity: Date.now() };
+    },
+  });
+  const log = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '');
+  return { a, state, log, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+const cut = (extra = {}) => ({ id: 'abc12345', name: 'proyecto', title: 'Una sesión', cwd: os.tmpdir(), limitType: 'five_hour', limitResetsAt: Date.now() - 1000, ...extra });
+const usage = (used) => ({ limits: [{ key: 'five_hour', primary: true, used }] });
+
+test('con el tope puesto espera sin gastar el turno y retoma apenas se reinicia', async () => {
+  const h = harness({ pendingScans: () => [cut()], usage: usage(100) });
+  try {
+    await h.a.tick();
+    await wait();
+    assert.ok(!h.log().includes('retomando'), 'no debe intentar con el tope puesto');
+    assert.match(h.log(), /esperando: el tope sigue puesto/);
+    assert.equal(h.a.snapshot().note, 'blocked');
+    assert.equal(h.a.snapshot().nextRetryAt, 0, 'esperar no gasta el turno');
+
+    h.state.usage = usage(0); // se reinició el límite
+    await h.a.tick(); // la próxima vuelta (un minuto después), sin esperar los 20 minutos
+    await wait();
+    assert.match(h.log(), /retomando abc12345/);
+    assert.equal(h.a.snapshot().note, '');
+  } finally { h.done(); }
+});
+
+test('si la sesión ya la retomó alguien antes de lanzarla, se omite', async () => {
+  // La primera lectura la ve cortada; la segunda (justo antes de lanzar) ya no.
+  const h = harness({ pendingScans: (n) => (n === 0 ? [cut()] : []), usage: usage(0) });
+  try {
+    await h.a.tick();
+    await wait();
+    assert.match(h.log(), /ya no estaba cortada, se omite/);
+    assert.ok(!h.log().includes('retomando'));
+  } finally { h.done(); }
+});
