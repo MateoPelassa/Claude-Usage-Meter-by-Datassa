@@ -108,6 +108,7 @@ function createWindow() {
   });
   win.on('close', (e) => { if (!quitting) { e.preventDefault(); win.hide(); } });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   if (CAPTURE) {
     win.webContents.once('did-finish-load', () => setTimeout(async () => {
@@ -208,6 +209,9 @@ async function openLogin() {
       loginWin.setTitle(`${u.protocol === 'https:' ? '🔒 ' : '⚠ '}${u.host}${u.pathname === '/' ? '' : u.pathname} · ${T().loginTitle}`);
     } catch {}
   };
+  // La página de inicio de sesión no necesita cámara, ubicación ni nada parecido: se niega todo permiso.
+  webSession().setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+  webSession().setPermissionCheckHandler(() => false);
   loginWin.webContents.on('page-title-updated', (e) => { e.preventDefault(); showAddress(); });
   loginWin.loadURL('https://claude.ai/login');
   // Cuando sale de /login (ya entró a su cuenta), se cierra y se actualiza.
@@ -304,7 +308,16 @@ ipcMain.handle('usage:get', () => last || refresh());
 ipcMain.handle('usage:refresh', () => refresh());
 ipcMain.handle('settings:get', () => settings());
 ipcMain.handle('lang:get', () => currentLang());
-ipcMain.handle('settings:set', (_e, patch) => {
+// Lo único que la ventana puede cambiar. Claves como claudePath, retryArgs o retryPrompt las lee el reintento para
+// lanzar un programa: si la ventana pudiera escribirlas, un fallo en la interfaz se volvería ejecución de código.
+const WINDOW_KEYS = ['scale', 'opacity', 'expanded', 'showUsed', 'shutdownAck', 'lang', 'alerts', 'alertTypes', 'alertSilent', 'retryMinutes', 'shutdownIdleMinutes'];
+ipcMain.handle('settings:set', (_e, raw) => {
+  const patch = {};
+  if (raw && typeof raw === 'object') for (const k of WINDOW_KEYS) if (Object.hasOwn(raw, k)) patch[k] = raw[k];
+  const clamp = (v, min, max, def) => (Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Number(v))) : def);
+  if ('scale' in patch) patch.scale = clamp(patch.scale, 0.8, 1.5, 1);
+  if ('opacity' in patch) patch.opacity = clamp(patch.opacity, 0.35, 1, 0.94);
+  for (const k of ['expanded', 'showUsed', 'shutdownAck']) if (k in patch) patch[k] = !!patch[k];
   // Los tiempos de la automatización se acotan acá: un valor roto no debe dejar reintentos sin pausa ni un apagado inmediato.
   const minutes = (v, min, max, def) => (Number.isFinite(Number(v)) ? Math.min(max, Math.max(min, Math.round(Number(v)))) : def);
   if ('retryMinutes' in patch) patch.retryMinutes = minutes(patch.retryMinutes, 5, 120, 20);

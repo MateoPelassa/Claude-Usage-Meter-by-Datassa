@@ -27,9 +27,13 @@ function shouldShutdown(ctx) {
   return ctx.idleMinutes >= ctx.idleLimitMinutes;
 }
 
+const SAFE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+// Solo rutas absolutas: una entrada relativa del PATH (".", "bin") se resolvería contra la carpeta de la sesión
+// al lanzar el proceso, y esa carpeta puede ser un repositorio cualquiera.
 function findClaude(custom) {
-  if (custom && fs.existsSync(custom)) return custom;
-  const dirs = [path.join(os.homedir(), '.local', 'bin'), ...(process.env.PATH || '').split(path.delimiter)].filter(Boolean);
+  if (custom && path.isAbsolute(custom) && fs.existsSync(custom)) return custom;
+  const dirs = [path.join(os.homedir(), '.local', 'bin'), ...(process.env.PATH || '').split(path.delimiter)].filter((d) => d && path.isAbsolute(d));
   for (const name of ['claude.exe', 'claude.cmd']) {
     for (const d of dirs) {
       const p = path.join(d, name);
@@ -37,6 +41,29 @@ function findClaude(custom) {
     }
   }
   return null;
+}
+
+// Arma cómo lanzar claude. El proceso corre con la carpeta de la sesión como directorio de trabajo, y Windows busca
+// ejecutables primero ahí: un "cmd.exe" o un "node.cmd" dentro de un repositorio clonado se ejecutaría en lugar del real.
+// Por eso cmd.exe va con ruta absoluta y NoDefaultCurrentDirectoryInExePath hace que cmd (y el shim claude.cmd,
+// que llama a "node" sin ruta) ignore la carpeta actual al buscar programas.
+function cmdPath(env = process.env) {
+  const c = env.ComSpec;
+  if (c && path.isAbsolute(c) && path.basename(c).toLowerCase() === 'cmd.exe') return c;
+  return path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
+}
+const shutdownPath = (env = process.env) => path.join(env.SystemRoot || 'C:\\Windows', 'System32', 'shutdown.exe');
+// Dentro de comillas, cmd no interpreta & | < > ^; las comillas y % sí, así que un argumento con ellos se rechaza.
+const CMD_UNSAFE = /["%\r\n\0]/;
+function buildSpawn(bin, args, env = process.env) {
+  const childEnv = { ...env, NoDefaultCurrentDirectoryInExePath: '1' };
+  if (!bin.toLowerCase().endsWith('.cmd')) return { file: bin, args, options: { env: childEnv } };
+  const bad = [bin, ...args].find((a) => CMD_UNSAFE.test(a));
+  if (bad !== undefined) throw new Error(`argumento no apto para cmd.exe: ${bad.slice(0, 40)}`);
+  // /d: sin AutoRun. /s /c "...": cmd quita solo las comillas de afuera y deja intactas las de cada argumento,
+  // así una ruta con espacios (C:\Users\Nombre Apellido\...) no se parte.
+  const line = [bin, ...args].map((a) => `"${a}"`).join(' ');
+  return { file: cmdPath(env), args: ['/d', '/s', '/c', `"${line}"`], options: { env: childEnv, windowsVerbatimArguments: true } };
 }
 
 // o: { cfg(), saveCfg(patch), getUsage(), refreshUsage(), notify(title, body), onChange(estado), t(), logFile, dryRun, demo }
@@ -100,10 +127,19 @@ function createAutomation(o) {
     return new Promise((resolve) => {
       const bin = findClaude(o.cfg().claudePath);
       if (!bin) { st.note = 'noClaude'; log('sin comando claude'); return resolve(); }
+      // El id sale del contenido de un archivo: con claude.cmd viaja por cmd.exe, así que solo se acepta el formato esperado.
+      if (!SAFE_ID.test(p.id)) { attempts.set(p.id, MAX_ATTEMPTS); log(`id de sesión con formato inesperado, no se retoma: ${String(p.id).slice(0, 60)}`); return resolve(); }
       if (!p.cwd || !fs.existsSync(p.cwd)) { attempts.set(p.id, MAX_ATTEMPTS); log(`${p.id} carpeta inexistente: ${p.cwd}`); return resolve(); }
       const args = ['-p', o.cfg().retryPrompt || o.t().resumePrompt, '--resume', p.id, ...(o.cfg().retryArgs || [])];
-      const cmd = bin.endsWith('.cmd') ? 'cmd.exe' : bin;
-      const child = spawn(cmd, bin.endsWith('.cmd') ? ['/c', bin, ...args] : args, { cwd: p.cwd, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+      let child;
+      try {
+        const s = buildSpawn(bin, args);
+        child = spawn(s.file, s.args, { ...s.options, cwd: p.cwd, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
+      } catch (e) {
+        attempts.set(p.id, MAX_ATTEMPTS);
+        log(`${p.id} no se lanzó: ${e.message}`);
+        return resolve();
+      }
       let err = '';
       child.stderr.on('data', (d) => { err = (err + d).slice(-600); });
       child.on('error', (e) => { log(`${p.id} no arrancó: ${e.message}`); resolve(); });
@@ -133,7 +169,7 @@ function createAutomation(o) {
     log('apagado programado');
     o.notify(o.t().nShutdown, o.t().nShutdownBody);
     // /f cierra los programas abiertos sin preguntar; /t deja el margen para cancelar con "shutdown /a".
-    if (!o.dryRun) execFile('shutdown', ['/s', '/f', '/t', String(SHUTDOWN_DELAY_S), '/c', o.t().shutdownMsg], (e) => e && log(`shutdown falló: ${e.message}`));
+    if (!o.dryRun) execFile(shutdownPath(), ['/s', '/f', '/t', String(SHUTDOWN_DELAY_S), '/c', o.t().shutdownMsg], (e) => e && log(`shutdown falló: ${e.message}`));
   }
 
   async function tick() {
@@ -183,7 +219,7 @@ function createAutomation(o) {
   }
 
   function cancelShutdown() {
-    if (st.shutdownAt && !o.dryRun) execFile('shutdown', ['/a'], () => {});
+    if (st.shutdownAt && !o.dryRun) execFile(shutdownPath(), ['/a'], () => {});
     st.shutdownAt = null;
     st.shutdown = false;
     log('apagado cancelado');
@@ -205,4 +241,4 @@ function createAutomation(o) {
   return { start, set, cancelShutdown, snapshot, emit, scanNow };
 }
 
-module.exports = { createAutomation, shouldShutdown };
+module.exports = { createAutomation, shouldShutdown, buildSpawn, cmdPath };
